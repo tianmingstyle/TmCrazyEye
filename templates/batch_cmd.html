@@ -1,95 +1,193 @@
 {% extends 'index.html' %}
 
- {% block page-content %}
+{% block page-content %}
     <div class="container-fluid">
-    {% csrf_token %}
-      <div class="row">
-          <!-- 主机选择部分 -->
-         <div class="col-xs-6 col-md-4">
-             <div class="panel panel-default">
-              <div class="panel-heading">
-                <h3 class="panel-title">选择需要操作的主机</h3>
-              </div>
-              <div class="panel-body">
-{#                Panel content#}
-                   <p>主机分组</p>
-                {% for host_group in group_host_list %}
-                    <li onclick="ItemToggle(this)">{{ host_group.name }} <span>{{ host_group.host_to_remote_user.count }}</span></li>
-                    <ul>
-                         <li>
-                            {% for hosts in host_group.host_to_remote_user.all %}
-                                   <li><input type="checkbox" tag="host_select" value="{{ hosts.id }}"/>
-                                         {{ hosts.remote_user.username }}@{{ hosts.host.ip }}
-                                   </li>
+        {% csrf_token %}
+        <div class="row">
+            <!-- 主机选择部分 -->
+            <div class="col-xs-6 col-md-4">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">选择需要操作的主机</h3>
+                    </div>
+                    <div class="panel-body">
+                        {#                Panel content#}
+                        <p>主机分组</p>
+                        {% for host_group in group_host_list %}
+                            <li onclick="ItemToggle(this)">{{ host_group.name }}
+                                <span>{{ host_group.host_to_remote_user.count }}</span></li>
+                            <ul>
+                                <li>
+                                    {% for hosts in host_group.host_to_remote_user.all %}
+                                        <li><input type="checkbox" tag="host_select" value="{{ hosts.id }}"/>
+                                            {{ hosts.remote_user.username }}@{{ hosts.host.ip }}
+                                        </li>
+                                    {% endfor %}
+                                </li>
+                            </ul>
+
+                        {% endfor %}
+                        <p onclick="ItemToggle(this)">未分组主机</p>
+                        <ul>
+                            {% for hosts in ungroup_host_list %}
+
+                                <li><input type="checkbox" tag="host_select" value="{{ hosts.id }}"/>
+                                    {{ hosts.remote_user.username }}@{{ hosts.host.ip }}
+                                </li>
                             {% endfor %}
-                        </li>
-                    </ul>
+                        </ul>
 
-                {% endfor %}
-              <p onclick="ItemToggle(this)">未分组主机</p>
-              <ul>
-                    {% for hosts in ungroup_host_list %}
-
-                    <li><input type="checkbox" tag="host_select" value="{{ hosts.id }}"/>
-                        {{ hosts.remote_user.username }}@{{ hosts.host.ip }}
-                    </li>
-                {% endfor %}
-              </ul>
-
-              </div>
+                    </div>
+                </div>
             </div>
-         </div>
-          <!--命令输入和执行结果部分-->
-         <div class="col-xs-6 col-md-8">
-            <div class="input-group input-group-lg">
-              <span class="input-group-addon" id="sizing-addon1"></span>
-              <input type="text" id="cmd" class="form-control" placeholder="请输入要执行的命令" aria-describedby="sizing-addon1">
+            <!--命令输入和执行结果部分-->
+            <div class="col-xs-6 col-md-8">
+            {% block performanceresult %}
+
+                <div class="input-group input-group-lg">
+                    <span class="input-group-addon" id="sizing-addon1"></span>
+                    <input type="text" id="cmd" class="form-control" placeholder="请输入要执行的命令"
+                           aria-describedby="sizing-addon1">
+                </div>
+                <!-- Indicates a successful or positive action -->
+                <button type="button" id="runcmd" class="btn btn-success" onclick="PostData(this)" style="float: right;">执行命令
+                </button>
+
+                <!--执行命令的主机及结果-->
+                <div id="task_result">
+                    {#                  here is cmd result!#}
+
+                </div>
+               {% endblock %}
             </div>
-            <!-- Indicates a successful or positive action -->
-            <button type="button" class="btn btn-success" onclick="PostData()" style="margin-left: 1000px">执行命令</button>
-         </div>
-      </div>
+
+        </div>
     </div>
 
-     <script>
+    <script>
 
-        function ItemToggle(ths){
+        function ItemToggle(ths) {
             //console.log(this);
             //var  _ths = this
 
             $(ths).next().toggle();
         }
 
-        function PostData(){
+        function PostData(ths) {
             var cmd_text = $('#cmd').val().trim();
             var selected_host_ids = [];
-{#            console.log(cmd_text);#}
-            $('[tag="host_select"]:checked').each(function(){
+            {#            console.log(cmd_text);#}
+            $('[tag="host_select"]:checked').each(function () {
                 selected_host_ids.push($(this).val());
 
             })
-{#            console.log(selected_host_ids);#}
+            {#            console.log(selected_host_ids);#}
 
             //验证cmd&selected_host，都不能为空
-            if (!cmd_text){
+            if (!cmd_text) {
                 alert("命令不能为空!");
                 return false;
             }
 
-            if (selected_host_ids.length==0){
+            if (selected_host_ids.length == 0) {
                 alert("你还没有选择要执行命令的主机!");
                 return false;
             }
             //将选择的主机和要执行的命令传到后台
-            var task_argus={
-                "selected_host":selected_host_ids,
+            var task_argus = {
+                "selected_host": selected_host_ids,
                 "task_type": "cmd",
-                "cmd":cmd_text
+                "cmd": cmd_text
             }
-            var csrfmiddlewaretoken=$('input[name="csrfmiddlewaretoken"]').val()
-            $.post("{% url "batch_cmd_mgr" %}", {"task_data":JSON.stringify(task_argus),"csrfmiddlewaretoken":csrfmiddlewaretoken}, function(callback){
-                console.log("callback:"+callback);
+
+{#            $(ths).next().empty();#}
+            $("#runcmd").next().empty();
+            $(ths).addClass("disabled");
+            var csrfmiddlewaretoken = $('input[name="csrfmiddlewaretoken"]').val()
+            $.post("{% url "batch_cmd_mgr" %}", {"task_data": JSON.stringify(task_argus), "csrfmiddlewaretoken": csrfmiddlewaretoken}, function (callback) {
+                callback = JSON.parse(callback);
+                console.log("task_id is:" + callback.task_id);
+                console.log("callback" + callback);
+                $.each(callback.sub_task_info, function (index, ele) {
+                    console.log(index);
+                    console.log(ele)
+                    var li_ele = "<li tag=" + ele.id + ">" + ele.host_to_remote_user__host__name + "(" + ele.host_to_remote_user__host__ip + ")" + " status:" + "init" + "</li>";
+                    li_ele += "<pre>Waitting for result...</pre>"
+                    $("#task_result").append(li_ele);
+                })
+                {#                getTaskLog(callback.task_id);#}
+                getResultObj = setInterval(function () {
+                    getTaskLog(callback.task_id);
+                }, 3000)
             })
         }
-     </script>
- {% endblock %}
+
+
+        function getTaskLog(task_id) {
+
+            $.ajax({
+                url: '/get_task_log',
+                method: "GET",
+                data: {"task_id": task_id},
+                dataType: "json",
+                success: function (arg) {
+                    console.log(arg);
+                    var all_task_done = true;
+                    $.each(arg, function (index, ele) {
+                        $("li[tag=" + ele.id + "]").next().text(ele.result);
+                        if (ele.task_status == 0) {
+                            $("li[tag=" + ele.id + "]").text(ele.host_to_remote_user__host__name + "(" + ele.host_to_remote_user__host__ip + ")" + " status:" + "init");
+                        }
+                        else if (ele.task_status == 1) {
+                            $("li[tag=" + ele.id + "]").text(ele.host_to_remote_user__host__name + "(" + ele.host_to_remote_user__host__ip + ")" + " status:" + "success");
+                        }
+                        else {
+                            $("li[tag=" + ele.id + "]").text(ele.host_to_remote_user__host__name + "(" + ele.host_to_remote_user__host__ip + ")" + " status:" + "failed");
+                        }
+                        //if task's status eq 0, set all_task_done false in circle
+                        if(ele.task_status == 0){
+                            all_task_done = false;
+                        }
+                    })
+                    // clear interval object when all task's status are not 0.
+                    if(all_task_done){
+                        clearInterval(getResultObj);
+                         $('#runcmd').removeClass("disabled");
+                    }
+
+                }
+
+            })
+
+        }
+
+
+        {#        function getTaskLog(task_id) {#}
+        {#            setInterval(function () {#}
+        {#                $.ajax({#}
+        {#                    url: '/get_task_log',#}
+        {#                    method: "GET",#}
+        {#                    data: {"task_id": task_id},#}
+        {#                    dataType: "json",#}
+        {#                    success: function (arg) {#}
+        {#                        console.log(arg);#}
+        {#                         $.each(arg,function(index,ele){#}
+        {#                          $("li[tag="+ele.id+"]").next().text(ele.result);#}
+        {#                          if(ele.task_status == 0){#}
+        {#                              $("li[tag="+ele.id+"]").text(ele.host_to_remote_user__host__name + "(" + ele.host_to_remote_user__host__ip + ")" + " status:" + "init" );#}
+        {#                          }#}
+        {#                          else if(ele.task_status == 1){#}
+        {#                                 $("li[tag="+ele.id+"]").text(ele.host_to_remote_user__host__name + "(" + ele.host_to_remote_user__host__ip + ")" + " status:" + "success" );#}
+        {#                             }#}
+        {#                          else{#}
+        {#                                 $("li[tag="+ele.id+"]").text(ele.host_to_remote_user__host__name + "(" + ele.host_to_remote_user__host__ip + ")" + " status:" + "failed" );#}
+        {#                             }#}
+        {#                         })#}
+        {##}
+        {#                    }#}
+        {##}
+        {#                })#}
+        {#            }, 3000)#}
+        {#        }#}
+    </script>
+{% endblock %}
